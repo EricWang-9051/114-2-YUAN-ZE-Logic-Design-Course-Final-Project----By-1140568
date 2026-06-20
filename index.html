@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sequential Logic EDA</title>
+    
+    <!-- 引入 Mermaid.js 核心庫來繪製狀態圖 -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.8.0/dist/mermaid.min.js"></script>
+    
+    <style>
+        /* 基礎 UI 樣式 */
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 0; padding: 20px; color: #333; }
+        .header { display: flex; justify-content: space-between; align-items: center; background-color: #2c3e50; color: white; padding: 15px 20px; border-radius: 8px 8px 0 0; }
+        .header h1 { margin: 0; font-size: 24px; }
+        .student-info { font-size: 16px; background-color: #34495e; padding: 8px 15px; border-radius: 4px; display: flex; gap: 10px; align-items: center;}
+        .main-container { display: flex; gap: 20px; background-color: #fff; padding: 20px; border-radius: 0 0 8px 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .left-panel { flex: 1; border-right: 2px solid #ecf0f1; padding-right: 20px; }
+        .section-title { background-color: #ecf0f1; padding: 10px; font-weight: bold; border-left: 4px solid #3498db; margin-bottom: 15px; text-transform: uppercase; }
+        
+        .control-row { display: flex; align-items: center; gap: 15px; margin-bottom: 15px; flex-wrap: wrap; padding: 5px; border-radius: 4px;}
+        .control-row label { font-weight: bold; cursor: pointer; }
+        select { padding: 5px 10px; font-size: 14px; border-radius: 4px; border: 1px solid #ccc; background: white;}
+        
+        table { width: 100%; border-collapse: collapse; margin-bottom: 15px; text-align: center; background: #fff;}
+        th, td { border: 1px solid #bdc3c7; padding: 8px; }
+        th { background-color: #f9f9f9; }
+        input[type="text"] { width: 80px; text-align: center; border: 1px solid #ccc; border-radius: 4px; font-family: monospace; font-size: 14px; font-weight: bold; color: #2c3e50; }
+        input[type="text"]:focus { outline: 2px solid #3498db; background-color: #e8f4f8; }
+        
+        .btn-group { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; padding: 5px; border-radius: 4px;}
+        button { padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; transition: background-color 0.2s; font-size: 14px;}
+        .btn-primary { background-color: #3498db; color: white; }
+        .btn-primary:hover { background-color: #2980b9; }
+        .btn-secondary { background-color: #95a5a6; color: white; }
+        .btn-secondary:hover { background-color: #7f8c8d; }
+        .btn-danger { background-color: #e74c3c; color: white; padding: 5px 10px;}
+        .btn-danger:hover { background-color: #c0392b; }
+        .btn-success { background-color: #2ecc71; color: white; flex-grow: 1; font-size: 16px; padding: 12px;}
+        .btn-success:hover { background-color: #27ae60; }
+        .btn-warning { background-color: #f39c12; color: white; border: 1px solid #e67e22;}
+        .btn-warning:hover { background-color: #e67e22; }
+        .btn-lang { background-color: #8e44ad; color: white; border: 1px solid #732d91; }
+        .btn-lang:hover { background-color: #9b59b6; }
+        
+        .right-panel { flex: 1.5; display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+        .output-box { border: 1px solid #bdc3c7; border-radius: 4px; padding: 15px; min-height: 150px; background-color: #fafafa; overflow-x: auto; position: relative;}
+        .equation-text { font-size: 18px; font-family: 'Courier New', Courier, monospace; color: #c0392b; font-weight: bold; }
+        .fsm-container { display: flex; justify-content: center; align-items: center; min-height: 250px;}
+
+        /* ================= 智慧導覽圖層 (完美滾動版) ================= */
+        .help-backdrop {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0, 0, 0, 0.75); z-index: 999997; display: none; cursor: pointer;
+        }
+        .help-ui {
+            position: absolute; top: 0; left: 0; width: 100%;
+            z-index: 999999; display: none; pointer-events: none;
+        }
+        #helpSvg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        .help-box {
+            position: absolute; background: #2c3e50; color: #ecf0f1; padding: 15px 20px;
+            border-radius: 8px; font-size: 14px; width: max-content; max-width: 300px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.5); border-top: 4px solid #f39c12;
+            line-height: 1.6; pointer-events: auto; font-weight: 500;
+        }
+        .help-box strong { color: #f1c40f; font-size: 15px; }
+        .help-highlight {
+            position: relative; z-index: 999998 !important; 
+            background-color: #fff; border-radius: 4px;
+            box-shadow: 0 0 0 4px rgba(243, 156, 18, 0.9), 0 4px 15px rgba(0,0,0,0.5);
+        }
+
+        /* PDF 列印防裁斷 */
+        @media print {
+            body { background-color: #fff; padding: 0; margin: 0; }
+            .control-row, .btn-group, td button, .btn-warning, .btn-lang { display: none !important; }
+            .main-container { box-shadow: none; display: flex; flex-direction: column; border: none; padding: 0; gap: 30px; }
+            .left-panel { border-right: none; padding-right: 0; width: 100%; }
+            .right-panel { width: 100%; display: block; }
+            input[type="text"] { border: none; font-weight: bold; font-size: 14px; background: transparent; }
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            .output-box { page-break-inside: avoid; break-inside: avoid; border: 1px solid #ccc; margin-bottom: 20px; }
+            .header { border-radius: 0; }
+            svg { max-width: 100%; height: auto; }
+            .help-backdrop, .help-ui { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1 data-i18n="title">Sequential Logic EDA</h1>
+        <div class="student-info">
+            <span data-i18n="studentInfo">學號：1140568 | 姓名：王祖音</span>
+            <button class="btn-warning" onclick="toggleHelp()" data-i18n="btnHelp">💡 系統說明</button>
+            <button class="btn-lang" onclick="toggleLang()" data-i18n="btnLang">🌐 English</button>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <div class="left-panel">
+            <div class="section-title" data-i18n="sec1">1. 架構設定 (ARCHITECTURE SETTINGS)</div>
+            
+            <div id="bitGroup" class="control-row">
+                <label data-i18n="lblBits">位元數 (Num Bits):</label>
+                <select id="bitSelect" onchange="updateTableFormat()">
+                    <option value="1">1 Bit (Q0)</option>
+                    <option value="2" selected>2 Bits (Q1, Q0)</option>
+                    <option value="3">3 Bits (Q2, Q1, Q0)</option>
+                    <option value="4">4 Bits (Q3~Q0)</option>
+                    <option value="5">5 Bits (Q4~Q0)</option>
+                    <option value="6">6 Bits (Q5~Q0)</option>
+                </select>
+            </div>
+            
+            <div class="control-row">
+                <label data-i18n="lblModel">模型 (Model):</label>
+                <label><input type="radio" name="model" value="mealy" id="mealyRadio" checked onchange="updateTableFormat()"> Mealy</label>
+                <label><input type="radio" name="model" value="moore" id="mooreRadio" onchange="updateTableFormat()"> Moore</label>
+            </div>
+
+            <div id="ffGroup" class="control-row">
+                <label data-i18n="lblFF">正反器 (FF Type):</label>
+                <label><input type="radio" name="ff_type" value="jk" checked> JK-FF</label>
+                <label><input type="radio" name="ff_type" value="d"> D-FF</label>
+                <label><input type="radio" name="ff_type" value="t"> T-FF</label>
+                <label><input type="radio" name="ff_type" value="sr"> SR-FF</label>
+            </div>
+
+            <div class="section-title" data-i18n="sec2">2. 狀態表輸入 (STATE TABLE INPUT)</div>
+            <div id="stateInfo" style="font-size: 14px; margin-bottom: 10px; color: #7f8c8d;"></div>
+            
+            <div id="tableGroup" style="padding: 5px; border-radius: 4px;">
+                <table id="stateTable">
+                    <thead id="tableHead"></thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+
+            <div id="btnGroup" class="btn-group">
+                <button class="btn-secondary" onclick="addTableRow()" data-i18n="btnRow">+ 新增列</button>
+                <button class="btn-secondary" onclick="updateTableFormat()" data-i18n="btnClear">清空表格</button>
+            </div>
+
+            <div class="btn-group" style="margin-top: 30px;">
+                <button class="btn-success" onclick="extractStateData()" data-i18n="btnGen">開始生成 (GENERATE)</button>
+                <button class="btn-primary" onclick="window.print()" data-i18n="btnExport">匯出報告 (PDF)</button>
+            </div>
+        </div>
+
+        <div class="right-panel">
+            <div class="section-title" data-i18n="out1">OUTPUT 1: 最佳化方程式</div>
+            <div class="output-box" id="output1">
+                <p style="color:#95a5a6;" data-i18n="wait">等待生成中... (Waiting for generation...)</p>
+            </div>
+
+            <div class="section-title" data-i18n="outFSM">OUTPUT 2: 狀態轉換圖 (FSM)</div>
+            <div class="output-box" id="outputFSM" style="background-color: #fff;">
+                <p style="color:#95a5a6;" data-i18n="fsmCanvas">[狀態圖顯示區]</p>
+            </div>
+
+            <div class="section-title" data-i18n="out2">OUTPUT 3: 電路圖</div>
+            <div class="output-box" id="output2" style="padding: 0; background-color: #fff;">
+                <p style="color: #95a5a6; padding: 15px;" data-i18n="circuitCanvas">[電路圖顯示區]</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="helpBackdrop" class="help-backdrop" onclick="toggleHelp()"></div>
+    <div id="helpUI" class="help-ui">
+        <svg id="helpSvg"></svg>
+        <div id="helpContent"></div>
+    </div>
+
+    <script>
+        mermaid.initialize({ startOnLoad: false, theme: 'default' });
+
+        // ================= 國際化多國語言字典 (i18n) =================
+        const i18n = {
+            zh: {
+                title: "Sequential Logic EDA (序向邏輯自動化平台)",
+                studentInfo: "學號：1140568 | 姓名：王祖音",
+                btnHelp: "💡 系統說明",
+                btnLang: "🌐 English",
+                sec1: "1. 架構設定 (ARCHITECTURE SETTINGS)",
+                lblBits: "位元數 (Num Bits):",
+                lblModel: "模型 (Model):",
+                lblFF: "正反器 (FF Type):",
+                sec2: "2. 狀態表輸入 (STATE TABLE INPUT)",
+                btnRow: "+ 新增列",
+                btnClear: "清空表格",
+                btnGen: "開始生成 (GENERATE)",
+                btnExport: "匯出報告 (PDF)",
+                out1: "OUTPUT 1: 最佳化方程式 (OPTIMIZED EQUATIONS)",
+                outFSM: "OUTPUT 2: 狀態轉換圖 (FSM DIAGRAM)",
+                out2: "OUTPUT 3: 電路圖 (SCHEMATIC)",
+                wait: "等待生成中... (Waiting for generation...)",
+                fsmCanvas: "[狀態圖顯示區]",
+                circuitCanvas: "[電路圖顯示區]",
+                thPS: "現在狀態 (Present State)",
+                thNS: "下個狀態 (Next State)",
+                thOut: "輸出 (Output Z)",
+                thAct: "操作",
+                errBits: "錯誤：Present/Next State 必須是完美的 {n} 個位元！",
+                errZ: "錯誤：Output Z 資料不完整！",
+                helpBit: "<strong>擴充設定：</strong><br>可自由選擇 1~6 Bits。<br>系統將自動擴充表格欄位與電路圖佈局。",
+                helpFF: "<strong>全正反器支援：</strong><br>包含 JK, D, T 以及最困難的 SR-FF。<br>內建 Quine-McCluskey 防衝突引擎。",
+                helpTbl: "<strong>智慧輸入表格：</strong><br>1. 按 <strong>Enter</strong> 進入下一格或新增列<br>2. 嚴格防呆：僅允許輸入 <strong>1, 0, -</strong><br>3. 點擊 <strong>X</strong> 刪除",
+                helpO1: "<strong>Output 1：方程式</strong><br>最佳化的 Flip-Flop 激勵方程式。<br>Don't care (-) 會自動參與化簡。",
+                helpOFSM: "<strong>Output 2：FSM 狀態圖</strong><br>完美呈現教科書級的泡泡狀態轉換圖，Mealy/Moore 雙模支援。",
+                helpO2: "<strong>Output 3：電路圖</strong><br>教科書級 SVG 電路圖。<br>具備頂部水平匯流排與動態避障下拉線。",
+                optInput: "最佳化輸入方程式",
+                kmapNote: "* 3-Bits 以上隱藏卡諾圖以保持版面整潔，QM 引擎會在背景自動計算最佳解。"
+            },
+            en: {
+                title: "Sequential Logic EDA",
+                studentInfo: "ID: 1140568 | Name: Yin Wang",
+                btnHelp: "💡 System Guide",
+                btnLang: "🌐 繁體中文",
+                sec1: "1. ARCHITECTURE SETTINGS",
+                lblBits: "Num Bits:",
+                lblModel: "Model:",
+                lblFF: "FF Type:",
+                sec2: "2. STATE TABLE INPUT",
+                btnRow: "+ Add Row",
+                btnClear: "Clear Table",
+                btnGen: "GENERATE",
+                btnExport: "EXPORT REPORT (PDF)",
+                out1: "OUTPUT 1: OPTIMIZED EQUATIONS",
+                outFSM: "OUTPUT 2: STATE TRANSITION DIAGRAM (FSM)",
+                out2: "OUTPUT 3: SCHEMATIC",
+                wait: "Waiting for generation...",
+                fsmCanvas: "[FSM Canvas Area]",
+                circuitCanvas: "[Circuit Canvas Area]",
+                thPS: "Present State",
+                thNS: "Next State",
+                thOut: "Output (Z)",
+                thAct: "Action",
+                errBits: "Error: Present/Next State must be exactly {n} bits!",
+                errZ: "Error: Output Z data is incomplete!",
+                helpBit: "<strong>Scalability:</strong><br>Choose 1~6 Bits.<br>System automatically scales layout.",
+                helpFF: "<strong>Full FF Support:</strong><br>Includes JK, D, T, and SR-FF.<br>Built-in QM collision prevention.",
+                helpTbl: "<strong>Smart Table:</strong><br>1. Press <strong>Enter</strong> to move/add row.<br>2. Strict input: only <strong>1, 0, -</strong><br>3. Click <strong>X</strong> to delete",
+                helpO1: "<strong>Output 1: Equations</strong><br>Optimized FF excitation equations.<br>Don't care (-) are automatically minimized.",
+                helpOFSM: "<strong>Output 2: FSM Diagram</strong><br>Auto-generated! Textbook-style bubble diagram for Mealy/Moore.",
+                helpO2: "<strong>Output 3: Schematic</strong><br>Textbook-grade SVG circuit.<br>Features horizontal buses and smart routing.",
+                optInput: "Optimal Input Equations",
+                kmapNote: "* K-Map visualizer is hidden for 3+ bits to ensure optimal readability. The QM Engine computes exactly."
+            }
+        };
+
+        let currentLang = 'zh';
+
+        function toggleLang() {
+            currentLang = currentLang === 'zh' ? 'en' : 'zh';
+            document.documentElement.lang = currentLang === 'zh' ? 'zh-TW' : 'en';
+            
+            applyI18n(); 
+            updateTableHeadersOnly();
+            
+            if(document.getElementById("output1").innerHTML.includes("equation-text")) {
+                extractStateData(); 
+            } 
+            if(document.getElementById("helpUI").style.display === "block") {
+                drawHelp(); 
+            }
+        }
+
+        function applyI18n() {
+            const dict = i18n[currentLang];
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (dict[key]) {
+                    el.innerHTML = dict[key];
+                }
+            });
+            const numBits = parseInt(document.getElementById("bitSelect").value);
+            let qVars = [];
+            for(let i=numBits-1; i>=0; i--) qVars.push(`Q${i}`);
+            document.getElementById("stateInfo").innerText = `${currentLang === 'zh' ? '狀態變數' : 'State Variables'}: ${qVars.join(' ')} | ${currentLang === 'zh' ? '輸入' : 'Input'}: X | ${currentLang === 'zh' ? '輸出' : 'Output'}: Z`;
+        }
+
+        function updateTableHeadersOnly() {
+            const isMealy = document.getElementById("mealyRadio").checked;
+            const thead = document.getElementById("tableHead");
+            const t = i18n[currentLang];
+            if (isMealy) {
+                thead.innerHTML = `<tr><th rowspan="2" data-i18n="thPS">${t.thPS}</th><th colspan="2" data-i18n="thNS">${t.thNS}</th><th colspan="2" data-i18n="thOut">${t.thOut}</th><th rowspan="2" data-i18n="thAct">${t.thAct}</th></tr>
+                                   <tr><th>X=0</th><th>X=1</th><th>X=0</th><th>X=1</th></tr>`;
+            } else {
+                thead.innerHTML = `<tr><th rowspan="2" data-i18n="thPS">${t.thPS}</th><th colspan="2" data-i18n="thNS">${t.thNS}</th><th rowspan="2" data-i18n="thOut">${t.thOut}</th><th rowspan="2" data-i18n="thAct">${t.thAct}</th></tr>
+                                   <tr><th>X=0</th><th>X=1</th></tr>`;
+            }
+        }
+
+        function toggleHelp() {
+            const backdrop = document.getElementById("helpBackdrop");
+            const ui = document.getElementById("helpUI");
+            
+            if (backdrop.style.display === "block") {
+                backdrop.style.display = "none";
+                ui.style.display = "none";
+                document.querySelectorAll('.help-highlight').forEach(el => el.classList.remove('help-highlight'));
+            } else {
+                backdrop.style.display = "block";
+                ui.style.display = "block";
+                drawHelp();
+            }
+        }
+
+        function drawHelp() {
+            const container = document.getElementById("helpContent");
+            const svg = document.getElementById("helpSvg");
+            const ui = document.getElementById("helpUI");
+            const t = i18n[currentLang];
+            container.innerHTML = "";
+            let svgHTML = "";
+
+            ui.style.height = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight) + "px";
+
+            const helps = [
+                { id: "bitGroup", align: "bottom", text: t.helpBit },
+                { id: "ffGroup", align: "bottom", text: t.helpFF },
+                { id: "tableGroup", align: "bottom", text: t.helpTbl },
+                { id: "output1", align: "inner-top-right", text: t.helpO1 },
+                { id: "outputFSM", align: "inner-top-right", text: t.helpOFSM },
+                { id: "output2", align: "inner-top-right", text: t.helpO2 }
+            ];
+
+            const scrollX = window.scrollX;
+            const scrollY = window.scrollY;
+
+            helps.forEach(h => {
+                const el = document.getElementById(h.id);
+                if (!el) return;
+                el.classList.add("help-highlight");
+
+                const rect = el.getBoundingClientRect();
+                const box = document.createElement("div");
+                box.className = "help-box";
+                box.innerHTML = h.text;
+                container.appendChild(box);
+
+                let boxLeft, boxTop;
+                
+                if (h.align === "bottom") {
+                    let startX = rect.left + scrollX + rect.width / 2;
+                    let startY = rect.bottom + scrollY;
+                    let dy = 15; 
+                    boxLeft = startX - box.offsetWidth / 2;
+                    boxTop = startY + dy;
+                    boxLeft = Math.max(10, Math.min(boxLeft, document.documentElement.scrollWidth - box.offsetWidth - 10));
+
+                    svgHTML += `<line x1="${startX}" y1="${startY}" x2="${startX}" y2="${startY+dy}" stroke="#f39c12" stroke-width="2" stroke-dasharray="4" />`;
+                    svgHTML += `<circle cx="${startX}" cy="${startY}" r="4" fill="#f39c12" />`;
+                    svgHTML += `<circle cx="${startX}" cy="${startY+dy}" r="3" fill="#f39c12" />`;
+                } 
+                else if (h.align === "inner-top-right") {
+                    boxLeft = rect.right + scrollX - box.offsetWidth - 20;
+                    boxTop = rect.top + scrollY + 20;
+                }
+
+                box.style.left = `${boxLeft}px`;
+                box.style.top = `${boxTop}px`;
+            });
+            svg.innerHTML = svgHTML;
+        }
+
+        window.addEventListener("resize", () => {
+            if (document.getElementById("helpBackdrop").style.display === "block") drawHelp();
+        });
+
+        window.onload = function() { applyI18n(); updateTableFormat(); };
+
+        function updateTableFormat() {
+            const numBits = parseInt(document.getElementById("bitSelect").value);
+            const tbody = document.getElementById("tableBody");
+            
+            let qVars = [];
+            for(let i=numBits-1; i>=0; i--) qVars.push(`Q${i}`);
+            document.getElementById("stateInfo").innerText = `${currentLang === 'zh' ? '狀態變數' : 'State Variables'}: ${qVars.join(' ')} | ${currentLang === 'zh' ? '輸入' : 'Input'}: X | ${currentLang === 'zh' ? '輸出' : 'Output'}: Z`;
+
+            updateTableHeadersOnly();
+            tbody.innerHTML = "";
+            addTableRow();
+        }
+
+        function addTableRow() {
+            const numBits = parseInt(document.getElementById("bitSelect").value);
+            const isMealy = document.getElementById("mealyRadio").checked;
+            const tbody = document.getElementById("tableBody");
+            const newRow = document.createElement("tr");
+            
+            if (isMealy) {
+                newRow.innerHTML = `<td><input type="text" class="ps" maxlength="${numBits}"></td>
+                    <td><input type="text" class="ns-0" maxlength="${numBits}"></td><td><input type="text" class="ns-1" maxlength="${numBits}"></td>
+                    <td><input type="text" class="z-0" maxlength="1"></td><td><input type="text" class="z-1" maxlength="1"></td>
+                    <td><button class="btn-danger" onclick="removeTableRow(this)">X</button></td>`;
+            } else {
+                newRow.innerHTML = `<td><input type="text" class="ps" maxlength="${numBits}"></td>
+                    <td><input type="text" class="ns-0" maxlength="${numBits}"></td><td><input type="text" class="ns-1" maxlength="${numBits}"></td>
+                    <td><input type="text" class="z" maxlength="1"></td>
+                    <td><button class="btn-danger" onclick="removeTableRow(this)">X</button></td>`;
+            }
+            tbody.appendChild(newRow);
+        }
+
+        function removeTableRow(button) { button.parentNode.parentNode.remove(); }
+
+        document.getElementById("stateTable").addEventListener("keydown", function(event) {
+            if (event.key === "Enter") {
+                event.preventDefault(); 
+                const inputs = Array.from(document.querySelectorAll('#tableBody input[type="text"]'));
+                const currentIndex = inputs.indexOf(event.target);
+                if (currentIndex > -1) {
+                    if (currentIndex + 1 < inputs.length) {
+                        inputs[currentIndex + 1].focus();
+                    } else { 
+                        addTableRow(); 
+                        const newInputs = document.querySelectorAll('#tableBody input[type="text"]');
+                        newInputs[currentIndex + 1].focus(); 
+                    }
+                }
+            }
+        });
+
+        document.getElementById("stateTable").addEventListener("input", function(event) {
+            if (event.target.tagName === "INPUT") {
+                event.target.value = event.target.value.replace(/[^01\-]/g, '');
+            }
+        });
+
+        document.getElementById("stateTable").addEventListener("focusin", function(event) {
+            if (event.target.tagName === "INPUT") {
+                event.target.select();
+            }
+        });
+
+        function getJKValues(p, n) {
+            if (p==="0" && n==="0") return { v1: "0", v2: "-" }; 
+            if (p==="0" && n==="1") return { v1: "1", v2: "-" };
+            if (p==="1" && n==="0") return { v1: "-", v2: "1" };
+            if (p==="1" && n==="1") return { v1: "-", v2: "0" };
+            return { v1: "-", v2: "-" };
+        }
+        
+        function getSRValues(p, n) {
+            if (p==="0" && n==="0") return { v1: "0", v2: "-" }; 
+            if (p==="0" && n==="1") return { v1: "1", v2: "0" };
+            if (p==="1" && n==="0") return { v1: "0", v2: "1" };
+            if (p==="1" && n==="1") return { v1: "-", v2: "0" }; 
+            return { v1: "-", v2: "-" };
+        }
+
+        function generateExcitationTable(stateMachineData, numBits) {
+            const ffType = document.querySelector('input[name="ff_type"]:checked').value;
+            let exTable = [];
+            stateMachineData.forEach(row => {
+                let excRow = { x: row.inputX, z: row.outputZ };
+                for(let i=0; i<numBits; i++) {
+                    const p = row.presentState[i];
+                    const n = row.nextState[i];
+                    const qVar = numBits-1-i;
+                    excRow[`q${qVar}`] = p;
+
+                    if (ffType === "jk") {
+                        const jk = getJKValues(p, n);
+                        excRow[`j${qVar}`] = jk.v1; excRow[`k${qVar}`] = jk.v2;
+                    } else if (ffType === "d") {
+                        excRow[`d${qVar}`] = n;
+                    } else if (ffType === "t") {
+                        excRow[`t${qVar}`] = (n === "-") ? "-" : ((p !== n) ? "1" : "0");
+                    } else if (ffType === "sr") {
+                        const sr = getSRValues(p, n);
+                        excRow[`s${qVar}`] = sr.v1; excRow[`r${qVar}`] = sr.v2;
+                    }
+                }
+                exTable.push(excRow);
+            });
+            return exTable;
+        }
+
+        function getTerms(exTable, targetVar, numBits) {
+            let terms = [], originalOnes = [], originalDontCares = [];
+            exTable.forEach(row => {
+                let bitStr = "";
+                for(let i=numBits-1; i>=0; i--) bitStr += row[`q${i}`];
+                bitStr += row.x;
+                if (row[targetVar] === "1" || row[targetVar] === "-") terms.push(bitStr);
+                if (row[targetVar] === "1") originalOnes.push(bitStr);
+                if (row[targetVar] === "-") originalDontCares.push(bitStr);
+            });
+            return { terms, originalOnes, originalDontCares };
+        }
+
+        function mergeIfOneBitDifference(str1, str2) {
+            let diffCount = 0, mergedStr = "";
+            for (let i = 0; i < str1.length; i++) {
+                if (str1[i] !== str2[i]) { diffCount++; mergedStr += "-"; }
+                else mergedStr += str1[i];
+            }
+            return diffCount === 1 ? mergedStr : null;
+        }
+
+        function findPrimeImplicants(terms) {
+            let pImps = new Set(), currentGen = [...terms];
+            while (currentGen.length > 0) {
+                let nextGen = new Set(), checked = new Array(currentGen.length).fill(false);
+                for (let i=0; i<currentGen.length; i++) {
+                    for (let j=i+1; j<currentGen.length; j++) {
+                        const merged = mergeIfOneBitDifference(currentGen[i], currentGen[j]);
+                        if (merged) { nextGen.add(merged); checked[i] = true; checked[j] = true; }
+                    }
+                }
+                for (let i=0; i<currentGen.length; i++) if (!checked[i]) pImps.add(currentGen[i]);
+                currentGen = Array.from(nextGen);
+            }
+            return Array.from(pImps);
+        }
+
+        function covers(pi, minterm) {
+            for (let i=0; i<pi.length; i++) if (pi[i] !== '-' && pi[i] !== minterm[i]) return false;
+            return true;
+        }
+
+        function getMinimumCover(primeImplicants, originalOnes, originalDontCares) {
+            if (originalOnes.length === 0) return []; 
+            let finalPIs = [], uncovered = [...originalOnes];
+            while (uncovered.length > 0) {
+                let bestPI = null, maxCount = -1, bestCover = [];
+                primeImplicants.forEach(pi => {
+                    let coveredOnset = uncovered.filter(one => covers(pi, one));
+                    if (coveredOnset.length > maxCount) { maxCount = coveredOnset.length; bestPI = pi; bestCover = coveredOnset; }
+                });
+                if (maxCount === 0) break;
+                finalPIs.push(bestPI);
+                uncovered = uncovered.filter(one => !bestCover.includes(one));
+            }
+            return finalPIs;
+        }
+
+        function formatEquation(primeImplicants, numBits) {
+            if (primeImplicants.length === 0) return "0";
+            let variables = [];
+            for(let i=numBits-1; i>=0; i--) variables.push(`Q${i}`);
+            variables.push("X");
+
+            let terms = [];
+            primeImplicants.forEach(pi => {
+                let termVars = [];
+                for (let i = 0; i < pi.length; i++) {
+                    if (pi[i] === "1") termVars.push(variables[i]);
+                    else if (pi[i] === "0") termVars.push(variables[i] + "'");
+                }
+                terms.push(termVars.length === 0 ? "1" : termVars.join("")); 
+            });
+            return terms.join(" + ");
+        }
+
+        function generateDynamicKMapHTML(varName, exTable, numBits, finalPIs) {
+            function getCellColor(bitStr, pisArray) {
+                if (!Array.isArray(pisArray) || pisArray.length === 0) return '';
+                let isCovered = pisArray.some(pi => {
+                    for (let j = 0; j < pi.length; j++) {
+                        if (pi[j] !== '-' && pi[j] !== bitStr[j]) return false;
+                    }
+                    return true;
+                });
+                if (isCovered) {
+                    return 'background:#ffeaa7; font-weight:bold; color:#d35400; box-shadow: inset 0 0 5px #f39c12;'; 
+                }
+                return '';
+            }
+
+            let html = `<div style="display: inline-block; margin: 10px; border: 1px solid #ccc; padding: 10px; border-radius: 5px; background: #fff;">
+                <div style="text-align: center; font-weight: bold; margin-bottom: 8px;">${varName.toUpperCase()} K-Map</div>
+                <table style="border-collapse: collapse; text-align: center; font-size: 14px;">`;
+
+            if (numBits === 2) {
+                let kmap = { '0': {'00':'0','01':'0','11':'0','10':'0'}, '1': {'00':'0','01':'0','11':'0','10':'0'} };
+                exTable.forEach(row => {
+                    let val = row[varName] !== undefined ? row[varName] : "0";
+                    if (val === "-") val = "X";
+                    kmap[row.q1][row.q0 + row.x] = val;
+                });
+                html += `
+                    <tr><th rowspan="2" style="border: none; padding: 2px;">Q1</th><th colspan="4" style="border: none; border-bottom: 1px solid #aaa;">Q0 X</th></tr>
+                    <tr><th style="border: 1px solid #ccc; width: 30px;">00</th><th style="border: 1px solid #ccc; width: 30px;">01</th><th style="border: 1px solid #ccc; width: 30px;">11</th><th style="border: 1px solid #ccc; width: 30px;">10</th></tr>
+                    <tr><th style="border: 1px solid #ccc;">0</th>
+                        <td style="border:1px solid #ccc; ${getCellColor('000', finalPIs)}">${kmap['0']['00']}</td>
+                        <td style="border:1px solid #ccc; ${getCellColor('001', finalPIs)}">${kmap['0']['01']}</td>
+                        <td style="border:1px solid #ccc; ${getCellColor('011', finalPIs)}">${kmap['0']['11']}</td>
+                        <td style="border:1px solid #ccc; ${getCellColor('010', finalPIs)}">${kmap['0']['10']}</td></tr>
+                    <tr><th style="border: 1px solid #ccc;">1</th>
+                        <td style="border:1px solid #ccc; ${getCellColor('100', finalPIs)}">${kmap['1']['00']}</td>
+                        <td style="border:1px solid #ccc; ${getCellColor('101', finalPIs)}">${kmap['1']['01']}</td>
+                        <td style="border:1px solid #ccc; ${getCellColor('111', finalPIs)}">${kmap['1']['11']}</td>
+                        <td style="border:1px solid #ccc; ${getCellColor('110', finalPIs)}">${kmap['1']['10']}</td></tr>
+                </table></div>`;
+            } else if (numBits === 1) {
+                let kmap = { '0': {'0':'0','1':'0'}, '1': {'0':'0','1':'0'} };
+                exTable.forEach(row => {
+                    let val = row[varName] !== undefined ? row[varName] : "0";
+                    if (val === "-") val = "X";
+                    kmap[row.q0][row.x] = val;
+                });
+                html += `
+                    <tr><th rowspan="2" style="border: none; padding: 2px;">Q0</th><th colspan="2" style="border: none; border-bottom: 1px solid #aaa;">X</th></tr>
+                    <tr><th style="border: 1px solid #ccc; width: 30px;">0</th><th style="border: 1px solid #ccc; width: 30px;">1</th></tr>
+                    <tr><th style="border: 1px solid #ccc;">0</th>
+                        <td style="border:1px solid #ccc; ${getCellColor('00', finalPIs)}">${kmap['0']['0']}</td>
+                        <td style="border:1px solid #ccc; ${getCellColor('01', finalPIs)}">${kmap['0']['1']}</td></tr>
+                    <tr><th style="border: 1px solid #ccc;">1</th>
+                        <td style="border:1px solid #ccc; ${getCellColor('10', finalPIs)}">${kmap['1']['0']}</td>
+                        <td style="border:1px solid #ccc; ${getCellColor('11', finalPIs)}">${kmap['1']['1']}</td></tr>
+                </table></div>`;
+            }
+            return html;
+        }
+
+        function generateEDASchematic(equations, ffType, numBits) {
+            const defs = `<defs>
+                <g id="and-gate"><path d="M 0,0 L 20,0 A 20,20 0 0,1 20,40 L 0,40 Z" fill="#ecf0f1" stroke="#2c3e50" stroke-width="2"/><text x="12" y="24" font-size="10" font-family="Arial" fill="#2c3e50" font-weight="bold">AND</text></g>
+                <g id="or-gate"><path d="M 0,0 Q 15,0 30,20 Q 15,40 0,40 Q 10,20 0,0 Z" fill="#ecf0f1" stroke="#e74c3c" stroke-width="2"/><text x="10" y="24" font-size="10" font-family="Arial" fill="#e74c3c" font-weight="bold">OR</text></g>
+                
+                <g id="jk-ff"><rect x="0" y="0" width="70" height="100" fill="#fff" stroke="#34495e" stroke-width="2" rx="4"/><text x="10" y="30" font-size="14" font-weight="bold">J</text><text x="10" y="80" font-size="14" font-weight="bold">K</text><polygon points="0,45 10,50 0,55" fill="none" stroke="#34495e" stroke-width="2"/><text x="45" y="30" font-size="14" font-weight="bold">Q</text><text x="45" y="80" font-size="14" font-weight="bold">Q'</text><line x1="70" y1="25" x2="85" y2="25" stroke="#34495e" stroke-width="2"/><line x1="70" y1="75" x2="85" y2="75" stroke="#34495e" stroke-width="2"/></g>
+                <g id="d-ff"><rect x="0" y="0" width="70" height="100" fill="#fff" stroke="#34495e" stroke-width="2" rx="4"/><text x="10" y="30" font-size="14" font-weight="bold">D</text><polygon points="0,45 10,50 0,55" fill="none" stroke="#34495e" stroke-width="2"/><text x="45" y="30" font-size="14" font-weight="bold">Q</text><text x="45" y="80" font-size="14" font-weight="bold">Q'</text><line x1="70" y1="25" x2="85" y2="25" stroke="#34495e" stroke-width="2"/><line x1="70" y1="75" x2="85" y2="75" stroke="#34495e" stroke-width="2"/></g>
+                
+                <g id="t-ff"><rect x="0" y="0" width="70" height="100" fill="#fff" stroke="#34495e" stroke-width="2" rx="4"/><text x="10" y="30" font-size="14" font-weight="bold">T</text><polygon points="0,45 10,50 0,55" fill="none" stroke="#34495e" stroke-width="2"/><text x="45" y="30" font-size="14" font-weight="bold">Q</text><text x="45" y="80" font-size="14" font-weight="bold">Q'</text><line x1="70" y1="25" x2="85" y2="25" stroke="#34495e" stroke-width="2"/><line x1="70" y1="75" x2="85" y2="75" stroke="#34495e" stroke-width="2"/></g>
+                <g id="sr-ff"><rect x="0" y="0" width="70" height="100" fill="#fff" stroke="#34495e" stroke-width="2" rx="4"/><text x="10" y="30" font-size="14" font-weight="bold">S</text><text x="10" y="80" font-size="14" font-weight="bold">R</text><polygon points="0,45 10,50 0,55" fill="none" stroke="#34495e" stroke-width="2"/><text x="45" y="30" font-size="14" font-weight="bold">Q</text><text x="45" y="80" font-size="14" font-weight="bold">Q'</text><line x1="70" y1="25" x2="85" y2="25" stroke="#34495e" stroke-width="2"/><line x1="70" y1="75" x2="85" y2="75" stroke="#34495e" stroke-width="2"/></g>
+            </defs>`;
+            
+            let svg = defs + `<pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M 20 0 L 0 0 0 20" fill="none" stroke="#f0f0f0" stroke-width="1"/></pattern><rect width="100%" height="100%" fill="url(#grid)" />`;
+
+            let busMapY = { "X": 30, "X'": 50 };
+            const colors = ["#2980b9", "#27ae60", "#8e44ad", "#e67e22", "#d35400", "#c0392b"];
+            let currentBusY = 70;
+            
+            for(let i=0; i<numBits; i++) {
+                let bitIdx = numBits - 1 - i;
+                busMapY[`Q${bitIdx}`] = currentBusY;
+                busMapY[`Q${bitIdx}'`] = currentBusY + 20;
+                currentBusY += 40;
+            }
+
+            let canvasWidth = Math.max(900, 250 + numBits * 320 + 200);
+            const busEndX = canvasWidth - 100;
+
+            svg += `<text x="25" y="35" font-size="12" font-weight="bold" fill="#7f8c8d" text-anchor="end">X</text><line x1="30" y1="30" x2="${busEndX}" y2="30" stroke="#bdc3c7" stroke-width="1.5"/>`;
+            svg += `<text x="25" y="55" font-size="12" font-weight="bold" fill="#7f8c8d" text-anchor="end">X'</text><line x1="30" y1="50" x2="${busEndX}" y2="50" stroke="#bdc3c7" stroke-width="1.5"/>`;
+            
+            for(let i=0; i<numBits; i++) {
+                let bitIdx = numBits - 1 - i;
+                let color = colors[i % colors.length];
+                let yQ = busMapY[`Q${bitIdx}`], yQb = busMapY[`Q${bitIdx}'`];
+                svg += `<text x="25" y="${yQ+5}" font-size="12" font-weight="bold" fill="${color}" text-anchor="end">Q${bitIdx}</text><line x1="30" y1="${yQ}" x2="${busEndX}" y2="${yQ}" stroke="${color}" stroke-width="1.5" stroke-dasharray="4"/>`;
+                svg += `<text x="25" y="${yQb+5}" font-size="12" font-weight="bold" fill="${color}" text-anchor="end">Q${bitIdx}'</text><line x1="30" y1="${yQb}" x2="${busEndX}" y2="${yQb}" stroke="${color}" stroke-width="1.5" stroke-dasharray="4"/>`;
+            }
+
+            function drawDynamicEDABlock(eq, outX, outY) {
+                let html = "";
+                if (eq === "0" || eq === "1") {
+                    return `<line x1="${outX-30}" y1="${outY}" x2="${outX}" y2="${outY}" stroke="#2c3e50" stroke-width="2"/><text x="${outX-35}" y="${outY+4}" font-size="12" font-weight="bold" fill="#2980b9" text-anchor="end">${eq}</text>`;
+                }
+
+                const terms = eq.split(" + ");
+                const hasOR = terms.length > 1;
+                let orX = outX - 45; 
+                
+                if (hasOR) {
+                    html += `<use href="#or-gate" x="${orX}" y="${outY-20}" /><line x1="${orX+30}" y1="${outY}" x2="${outX}" y2="${outY}" stroke="#2c3e50" stroke-width="2"/>`;
+                    html += `<line x1="${orX-10}" y1="${outY}" x2="${orX+10}" y2="${outY}" stroke="#2c3e50" stroke-width="1.5"/>`;
+                } else {
+                    orX = outX;
+                }
+
+                let minAndY = outY, maxAndY = outY;
+
+                terms.forEach((term, index) => {
+                    let andY = outY + (hasOR ? (index - (terms.length-1)/2) * 50 : 0);
+                    if (index === 0) minAndY = andY;
+                    if (index === terms.length - 1) maxAndY = andY;
+
+                    const vars = term.match(/([A-Z][0-9]*'?)/g) || [term];
+
+                    if (vars.length > 1) {
+                        let andX = orX - 55, andYOffset = andY - 20;
+                        html += `<use href="#and-gate" x="${andX}" y="${andYOffset}" />`;
+                        
+                        if(hasOR) {
+                            html += `<line x1="${andX+20}" y1="${andY}" x2="${orX-10}" y2="${andY}" stroke="#2c3e50" stroke-width="1.5"/>`;
+                            html += `<circle cx="${orX-10}" cy="${andY}" r="2" fill="#2c3e50"/>`;
+                        } else {
+                            html += `<line x1="${andX+20}" y1="${andY}" x2="${outX}" y2="${andY}" stroke="#2c3e50" stroke-width="1.5"/>`;
+                        }
+
+                        vars.forEach((v, vIndex) => {
+                            let inY = andYOffset + 40 * (vIndex + 1) / (vars.length + 1);
+                            let tapX = andX - 15 - vIndex * 10; 
+                            let busY = busMapY[v];
+                            if(busY) {
+                                html += `<line x1="${tapX}" y1="${busY}" x2="${tapX}" y2="${inY}" stroke="#7f8c8d" stroke-width="1.2"/>`;
+                                html += `<circle cx="${tapX}" cy="${busY}" r="2.5" fill="#34495e"/>`; 
+                                html += `<line x1="${tapX}" y1="${inY}" x2="${andX}" y2="${inY}" stroke="#7f8c8d" stroke-width="1.2"/>`;
+                            }
+                        });
+                    } else {
+                        let v = vars[0], busY = busMapY[v];
+                        if (busY) {
+                            let tapX = hasOR ? orX - 65 : orX - 30; 
+                            if(hasOR) {
+                                html += `<polyline points="${tapX},${busY} ${tapX},${andY} ${orX-10},${andY}" fill="none" stroke="#34495e" stroke-width="1.2"/>`;
+                                html += `<circle cx="${tapX}" cy="${busY}" r="2.5" fill="#34495e"/><circle cx="${orX-10}" cy="${andY}" r="2" fill="#2c3e50"/>`;
+                            } else {
+                                html += `<polyline points="${tapX},${busY} ${tapX},${outY} ${outX},${outY}" fill="none" stroke="#34495e" stroke-width="1.2"/>`;
+                                html += `<circle cx="${tapX}" cy="${busY}" r="2.5" fill="#34495e"/>`;
+                            }
+                        }
+                    }
+                });
+
+                if (hasOR && terms.length > 1) {
+                    html += `<line x1="${orX-10}" y1="${minAndY}" x2="${orX-10}" y2="${maxAndY}" stroke="#2c3e50" stroke-width="1.5"/>`;
+                }
+                
+                return html;
+            }
+
+            const ffXStart = 250; 
+            const ffXSpacing = 320; 
+            const ffY = currentBusY + 60; 
+            
+            for(let i=0; i<numBits; i++) {
+                let bitIdx = numBits - 1 - i;
+                let ffX = ffXStart + i * ffXSpacing;
+                let color = colors[i % colors.length];
+                let yQ = busMapY[`Q${bitIdx}`], yQb = busMapY[`Q${bitIdx}'`];
+
+                if (ffType === "jk") {
+                    svg += `<use href="#jk-ff" x="${ffX}" y="${ffY}" />`;
+                    svg += `<text x="${ffX+10}" y="${ffY-10}" font-size="14" font-weight="bold" fill="#2c3e50">FF${bitIdx} (Q${bitIdx})</text>`;
+                    svg += drawDynamicEDABlock(equations[`j${bitIdx}`], ffX, ffY+25);
+                    svg += drawDynamicEDABlock(equations[`k${bitIdx}`], ffX, ffY+75);
+                } else if (ffType === "d") {
+                    svg += `<use href="#d-ff" x="${ffX}" y="${ffY}" />`;
+                    svg += `<text x="${ffX+10}" y="${ffY-10}" font-size="14" font-weight="bold" fill="#2c3e50">FF${bitIdx} (Q${bitIdx})</text>`;
+                    svg += drawDynamicEDABlock(equations[`d${bitIdx}`], ffX, ffY+25);
+                } else if (ffType === "t") {
+                    svg += `<use href="#t-ff" x="${ffX}" y="${ffY}" />`;
+                    svg += `<text x="${ffX+10}" y="${ffY-10}" font-size="14" font-weight="bold" fill="#2c3e50">FF${bitIdx} (Q${bitIdx})</text>`;
+                    svg += drawDynamicEDABlock(equations[`t${bitIdx}`], ffX, ffY+25);
+                } else if (ffType === "sr") {
+                    svg += `<use href="#sr-ff" x="${ffX}" y="${ffY}" />`;
+                    svg += `<text x="${ffX+10}" y="${ffY-10}" font-size="14" font-weight="bold" fill="#2c3e50">FF${bitIdx} (Q${bitIdx})</text>`;
+                    svg += drawDynamicEDABlock(equations[`s${bitIdx}`], ffX, ffY+25);
+                    svg += drawDynamicEDABlock(equations[`r${bitIdx}`], ffX, ffY+75);
+                }
+
+                svg += `<line x1="${ffX}" y1="${ffY+50}" x2="${ffX-15}" y2="${ffY+50}" stroke="#e67e22" stroke-width="2"/>`;
+                svg += `<line x1="${ffX-15}" y1="${ffY+50}" x2="${ffX-15}" y2="${ffY+140}" stroke="#e67e22" stroke-width="2"/>`;
+                svg += `<circle cx="${ffX-15}" cy="${ffY+140}" r="3" fill="#e67e22"/>`;
+
+                svg += `<polyline points="${ffX+85},${ffY+25} ${ffX+110},${ffY+25} ${ffX+110},${yQ}" fill="none" stroke="${color}" stroke-width="1.5"/>`;
+                svg += `<polyline points="${ffX+85},${ffY+75} ${ffX+125},${ffY+75} ${ffX+125},${yQb}" fill="none" stroke="${color}" stroke-width="1.5"/>`;
+            }
+
+            let lastClkX = ffXStart + (numBits - 1) * ffXSpacing - 15;
+            svg += `<line x1="30" y1="${ffY+140}" x2="${lastClkX}" y2="${ffY+140}" stroke="#e67e22" stroke-width="2"/>`;
+            svg += `<text x="25" y="${ffY+145}" font-size="14" fill="#e67e22" font-weight="bold" text-anchor="end">CLK</text>`;
+
+            let zX = ffXStart + (numBits-1) * ffXSpacing + 200;
+            let zY = ffY + 120; 
+            
+            svg += drawDynamicEDABlock(equations.z, zX, zY);
+            svg += `<line x1="${zX}" y1="${zY}" x2="${zX+40}" y2="${zY}" stroke="#c0392b" stroke-width="2"/>`;
+            svg += `<text x="${zX+45}" y="${zY+5}" font-size="16" font-weight="bold" fill="#c0392b">Output Z</text>`;
+
+            let canvasHeight = ffY + 200;
+            return `<svg width="100%" height="${canvasHeight}" viewBox="0 0 ${canvasWidth} ${canvasHeight}" style="background-color: #fff; border-radius: 4px;">${svg}</svg>`;
+        }
+
+        function extractStateData() {
+            const t = i18n[currentLang];
+            const numBits = parseInt(document.getElementById("bitSelect").value);
+            const isMealy = document.getElementById("mealyRadio").checked;
+            let stateMachineData = [], hasError = false;
+            let definedStates = new Set(); 
+
+            document.querySelectorAll("#tableBody tr").forEach((row, index) => {
+                const ps = row.querySelector(".ps").value.trim(), ns0 = row.querySelector(".ns-0").value.trim(), ns1 = row.querySelector(".ns-1").value.trim();
+                if(ps === "" && ns0 === "" && ns1 === "") return;
+                
+                if(ps.length !== numBits || ns0.length !== numBits || ns1.length !== numBits) {
+                    alert(t.errBits.replace('{n}', numBits)); hasError = true; return;
+                }
+
+                if (isMealy) {
+                    const z0 = row.querySelector(".z-0").value.trim(), z1 = row.querySelector(".z-1").value.trim();
+                    if(z0==="" || z1==="") { alert(t.errZ); hasError = true; return; }
+                    stateMachineData.push({ presentState: ps, inputX: "0", nextState: ns0, outputZ: z0 }, { presentState: ps, inputX: "1", nextState: ns1, outputZ: z1 });
+                    definedStates.add(ps + "_0"); definedStates.add(ps + "_1");
+                } else {
+                    const z = row.querySelector(".z").value.trim();
+                    if(z==="") { alert(t.errZ); hasError = true; return; }
+                    stateMachineData.push({ presentState: ps, inputX: "0", nextState: ns0, outputZ: z }, { presentState: ps, inputX: "1", nextState: ns1, outputZ: z });
+                    definedStates.add(ps + "_0"); definedStates.add(ps + "_1");
+                }
+            });
+
+            if(hasError || stateMachineData.length === 0) return;
+
+            let mermaidStr = "stateDiagram-v2\n";
+            let stateAdded = new Set();
+            let firstStateRendered = false;
+
+            stateMachineData.forEach(row => {
+                if (row.nextState.includes("-")) return; 
+                let psId = "S" + row.presentState;
+                if (!stateAdded.has(row.presentState) && !row.presentState.includes("-")) {
+                    if (isMealy) {
+                        mermaidStr += `    state "${row.presentState}" as ${psId}\n`;
+                    } else {
+                        mermaidStr += `    state "${row.presentState} / ${row.outputZ}" as ${psId}\n`;
+                    }
+                    stateAdded.add(row.presentState);
+                }
+            });
+
+            stateMachineData.forEach(row => {
+                if (row.nextState.includes("-")) return; 
+                let psId = "S" + row.presentState; 
+                let nsId = "S" + row.nextState;
+                
+                if (!firstStateRendered) {
+                    mermaidStr += `    [*] --> ${psId}\n`;
+                    firstStateRendered = true;
+                }
+
+                if (isMealy) {
+                    mermaidStr += `    ${psId} --> ${nsId} : ${row.inputX}/${row.outputZ}\n`;
+                } else {
+                    if (!stateAdded.has(row.nextState)) {
+                        mermaidStr += `    state "${row.nextState}" as ${nsId}\n`;
+                        stateAdded.add(row.nextState);
+                    }
+                    mermaidStr += `    ${psId} --> ${nsId} : ${row.inputX}\n`;
+                }
+            });
+
+            const fsmContainer = document.getElementById("outputFSM");
+            fsmContainer.innerHTML = `<pre class="mermaid fsm-container" id="fsm-graph-${Date.now()}">${mermaidStr}</pre>`;
+            mermaid.run({ querySelector: '#outputFSM .mermaid' });
+
+            const totalStates = Math.pow(2, numBits);
+            for(let i=0; i<totalStates; i++) {
+                let ps = i.toString(2).padStart(numBits, '0');
+                ["0", "1"].forEach(x => {
+                    if(!definedStates.has(ps + "_" + x)) {
+                        stateMachineData.push({
+                            presentState: ps,
+                            inputX: x,
+                            nextState: "-".repeat(numBits),
+                            outputZ: "-"
+                        });
+                    }
+                });
+            }
+            
+            const exTable = generateExcitationTable(stateMachineData, numBits);
+            const ffType = document.querySelector('input[name="ff_type"]:checked').value;
+            let finalEqs = {}, resultHTML = `<p style='font-weight:bold;'>${t.optInput}</p>`;
+            
+            let kmapHTML = "";
+            if (numBits <= 2) {
+                kmapHTML = "<div style='display: flex; flex-wrap: wrap; justify-content: flex-start; margin-top: 15px;'>";
+            }
+
+            let targets = [];
+            for(let i=numBits-1; i>=0; i--) {
+                if(ffType === "jk") targets.push(`j${i}`, `k${i}`);
+                else if(ffType === "d") targets.push(`d${i}`);
+                else if(ffType === "t") targets.push(`t${i}`);
+                else if(ffType === "sr") targets.push(`s${i}`, `r${i}`);
+            }
+
+            targets.forEach(v => {
+                const data = getTerms(exTable, v, numBits);
+                const pImps = findPrimeImplicants(data.terms);
+                const finalPIs = getMinimumCover(pImps, data.originalOnes, data.originalDontCares);
+                
+                finalEqs[v] = formatEquation(finalPIs, numBits);
+                resultHTML += `<p class="equation-text">${v.toUpperCase()} = ${finalEqs[v]}</p>`;
+                
+                if (numBits <= 2) {
+                    kmapHTML += generateDynamicKMapHTML(v, exTable, numBits, finalPIs);
+                }
+            });
+
+            const zData = getTerms(exTable, "z", numBits);
+            const zPImps = findPrimeImplicants(zData.terms);
+            const zFinalPIs = getMinimumCover(zPImps, zData.originalOnes, zData.originalDontCares);
+            
+            finalEqs["z"] = formatEquation(zFinalPIs, numBits);
+            resultHTML += `<hr style="border:0; border-top:1px dashed #ccc;"><p class="equation-text">Z = ${finalEqs["z"]}</p>`;
+
+            if (numBits <= 2) {
+                kmapHTML += generateDynamicKMapHTML("z", exTable, numBits, zFinalPIs) + "</div>";
+                resultHTML += kmapHTML;
+            } else {
+                resultHTML += `<p style='font-size:12px; color:#7f8c8d; margin-top:15px;'>${t.kmapNote}</p>`;
+            }
+
+            document.getElementById("output1").innerHTML = resultHTML;
+            document.getElementById("output2").innerHTML = generateEDASchematic(finalEqs, ffType, numBits);
+        }
+    </script>
+</body>
+</html>
